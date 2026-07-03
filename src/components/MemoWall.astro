@@ -484,7 +484,7 @@ const wallQuotes = rawSource
   });
 
   const pinnedEl = (wall?.querySelector(".mw-memo--pinned") as HTMLElement | null) ?? null;
-  const allQuotes = wall
+  let allQuotes = wall
     ? (Array.from(wall.querySelectorAll(".mw-memo:not(.mw-memo--pinned)")) as HTMLElement[])
     : [];
   let currentFacet = "";
@@ -558,4 +558,78 @@ const wallQuotes = rawSource
   });
 
   render();
+
+  // ── icu 即時預覽模式（測試用）─────────────────────────────────
+  // 網址加 ?icu=<活動shortHash>[,<hash2>] → 瀏覽器端直接向 icu 抓該活動的金句換上牆。
+  // icu 的 GraphQL CORS 白名單含 *.vercel.app 與 freewriting.matters.town，可直接 fetch。
+  // 用途：讓同事在 icu 選完金句後，重新整理此頁即可即時確認金句有沒有正常上牆。
+  // 沒帶 ?icu 參數時完全不觸發，正常牆不受影響。
+  const icuParam = new URLSearchParams(location.search).get("icu");
+  if (icuParam && wall) {
+    const hashes = icuParam.split(",").map((s) => s.trim()).filter(Boolean);
+    if (hashes.length) void loadIcuPreview(hashes);
+  }
+
+  function icuBanner(text: string) {
+    let el = document.getElementById("mw-icu-banner");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "mw-icu-banner";
+      el.setAttribute(
+        "style",
+        "position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#ffd23f;color:#2a2622;font-size:13px;font-weight:700;text-align:center;padding:8px 12px;",
+      );
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+  }
+
+  async function loadIcuPreview(hashes: string[]) {
+    const ENDPOINT = "https://server.matters.icu/graphql";
+    const Q =
+      "query ($h: String!) { campaign(input: { shortHash: $h }) { ... on WritingChallenge { quotes(input: { first: 50 }) { edges { node { id content article { shortHash author { userName displayName } } } } } } } }";
+    icuBanner("icu 即時預覽 · 正在抓金句…");
+    const collected: { content: string; author: string; hash: string }[] = [];
+    for (const h of hashes) {
+      try {
+        const res = await fetch(ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: Q, variables: { h } }),
+        });
+        const json = await res.json();
+        const edges = json?.data?.campaign?.quotes?.edges || [];
+        for (const e of edges) {
+          const n = e.node;
+          collected.push({
+            content: n.content || "",
+            author: n.article?.author?.displayName || n.article?.author?.userName || "",
+            hash: n.article?.shortHash || "",
+          });
+        }
+      } catch (err) {
+        console.warn("icu fetch failed", h, err);
+      }
+    }
+    if (!wall) return;
+    wall.querySelectorAll(".mw-memo:not(.mw-memo--pinned)").forEach((el) => el.remove());
+    const esc = (s: string) =>
+      s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] || c);
+    collected.forEach((q, i) => {
+      const li = document.createElement("li");
+      li.className = "mw-memo";
+      li.setAttribute("data-variant", String(i % 6));
+      li.setAttribute("data-facet", "");
+      li.innerHTML = `<a class="mw-card" href="https://matters.icu/a/${q.hash}" target="_blank" rel="noreferrer"><blockquote class="mw-quote">${esc(q.content)}</blockquote><figcaption class="mw-cardmeta"><span class="mw-author">— ${esc(q.author)}</span><span class="mw-original" aria-hidden="true">原文 ↗</span></figcaption></a>`;
+      wall.appendChild(li);
+    });
+    allQuotes = Array.from(
+      wall.querySelectorAll(".mw-memo:not(.mw-memo--pinned)"),
+    ) as HTMLElement[];
+    currentFacet = "";
+    render();
+    icuBanner(
+      `icu 即時預覽 · 活動 ${hashes.join(", ")} · 共 ${collected.length} 則金句（每次重新整理都會抓最新）`,
+    );
+  }
 </script>
