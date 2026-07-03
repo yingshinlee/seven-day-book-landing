@@ -616,15 +616,25 @@ const wallQuotes = rawSource
       }
     }
     if (!wall) return;
-    wall.querySelectorAll(".mw-memo:not(.mw-memo--pinned)").forEach((el) => el.remove());
-    const esc = (s: string) =>
-      s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] || c);
+    const staticCards = Array.from(
+      wall.querySelectorAll(".mw-memo:not(.mw-memo--pinned)"),
+    ) as HTMLElement[];
+    // 用現有的靜態便利貼 clone 當模板，保留 Astro scoped 樣式（data-astro-cid 屬性）
+    const template = (staticCards[0]?.cloneNode(true) as HTMLElement) || null;
+    staticCards.forEach((el) => el.remove());
     collected.forEach((q, i) => {
-      const li = document.createElement("li");
-      li.className = "mw-memo";
+      const li = (
+        template ? template.cloneNode(true) : document.createElement("li")
+      ) as HTMLElement;
+      if (!template) li.className = "mw-memo";
       li.setAttribute("data-variant", String(i % 6));
       li.setAttribute("data-facet", "");
-      li.innerHTML = `<a class="mw-card" href="https://matters.icu/a/${q.hash}" target="_blank" rel="noreferrer"><blockquote class="mw-quote">${esc(q.content)}</blockquote><figcaption class="mw-cardmeta"><span class="mw-author">— ${esc(q.author)}</span><span class="mw-original" aria-hidden="true">原文 ↗</span></figcaption></a>`;
+      const card = li.querySelector(".mw-card") as HTMLAnchorElement | null;
+      if (card) card.href = q.hash ? `https://matters.icu/a/${q.hash}` : "#";
+      const quoteEl = li.querySelector(".mw-quote");
+      if (quoteEl) quoteEl.textContent = q.content;
+      const authorEl = li.querySelector(".mw-author");
+      if (authorEl) authorEl.textContent = `— ${q.author}`;
       wall.appendChild(li);
     });
     allQuotes = Array.from(
