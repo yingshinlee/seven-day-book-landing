@@ -565,10 +565,14 @@ const wallQuotes = rawSource
   // 用途：讓同事在 icu 選完金句後，重新整理此頁即可即時確認金句有沒有正常上牆。
   // 沒帶 ?icu 參數時完全不觸發，正常牆不受影響。
   const icuParam = new URLSearchParams(location.search).get("icu");
-  if (icuParam && wall) {
-    const hashes = icuParam.split(",").map((s) => s.trim()).filter(Boolean);
-    if (hashes.length) void loadIcuPreview(hashes);
+  let icuHashes = icuParam
+    ? icuParam.split(",").map((s) => s.trim()).filter(Boolean)
+    : [];
+  // 預覽站（*.vercel.app）沒帶 ?icu 時，預設載入測試活動；正式站不套用此預設。
+  if (!icuHashes.length && location.hostname.endsWith(".vercel.app")) {
+    icuHashes = ["p4i596c4evup"];
   }
+  if (icuHashes.length && wall) void loadIcuPreview(icuHashes);
 
   function icuBanner(text: string) {
     let el = document.getElementById("mw-icu-banner");
