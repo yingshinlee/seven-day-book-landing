@@ -637,6 +637,16 @@ const wallQuotes = rawSource
       if (authorEl) authorEl.textContent = `— ${q.author}`;
       wall.appendChild(li);
     });
+    // 正式站的源泉圓體是 subset（只涵蓋正式金句用字），icu 任意測試內容可能缺字 → fallback 混字型。
+    // 預覽模式改載入「完整版源泉圓體」（同一套字型、全字集），確保任何 icu 內容都不缺字。
+    if (!document.getElementById("mw-gensen-full")) {
+      const st = document.createElement("style");
+      st.id = "mw-gensen-full";
+      st.textContent =
+        "@font-face{font-family:'GenSenRoundedFull';src:url('https://cdn.jsdelivr.net/gh/ButTaiwan/gensen-font@2.100/otf/TW/GenSenRounded2TW-M.otf') format('opentype');font-display:swap;}" +
+        "#mw-wall .mw-quote,#mw-wall .mw-author{font-family:'GenSenRoundedFull','GenSenRounded',sans-serif;}";
+      document.head.appendChild(st);
+    }
     allQuotes = Array.from(
       wall.querySelectorAll(".mw-memo:not(.mw-memo--pinned)"),
     ) as HTMLElement[];
